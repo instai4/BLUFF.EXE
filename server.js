@@ -15,9 +15,19 @@ app.get('/', (req, res) => {
 const server = http.createServer(app);
 
 const io = new Server(server, {
+
   cors: {
     origin: '*'
-  }
+  },
+
+  transports: [
+    'websocket',
+    'polling'
+  ],
+
+  pingTimeout: 60000,
+
+  pingInterval: 25000
 });
 
 // ─────────────────────────────────────────────────────────────

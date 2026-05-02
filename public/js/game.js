@@ -152,7 +152,7 @@ function escHtml(str) {
 
 // ─── SOCKET.IO Setup ───────────────────────────────────────────────────────────
 function initSocket() {
-  State.socket = io(window.location.origin, {
+  State.socket = io({
   transports: ['websocket', 'polling']
 });
 
