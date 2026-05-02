@@ -153,7 +153,7 @@ function escHtml(str) {
 // ─── SOCKET.IO Setup ───────────────────────────────────────────────────────────
 function initSocket() {
   State.socket = io({
-  transports: ['polling']
+  transports: ['websocket', 'polling']
 });
 
   State.socket.on('connect', () => {

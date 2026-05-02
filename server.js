@@ -20,7 +20,10 @@ const io = new Server(server, {
     origin: '*'
   },
 
-  transports: ['polling'],
+  transports: [
+    'websocket',
+    'polling'
+  ],
 
   pingTimeout: 60000,
 
