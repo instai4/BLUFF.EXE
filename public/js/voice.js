@@ -20,18 +20,27 @@ class VoiceChat {
     this.isSpeaking    = false;
 
     // ICE servers — Google STUN (free, no auth needed)
-   this.iceConfig = {
+ this.iceConfig = {
   iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun2.l.google.com:19302' },
+    {
+      urls: [
+        'stun:stun.l.google.com:19302',
+        'stun:stun1.l.google.com:19302'
+      ]
+    },
 
     {
-      urls: 'turn:openrelay.metered.ca:80',
+      urls: [
+        'turn:openrelay.metered.ca:80',
+        'turn:openrelay.metered.ca:443',
+        'turn:openrelay.metered.ca:443?transport=tcp'
+      ],
       username: 'openrelayproject',
       credential: 'openrelayproject'
     }
-  ]
+  ],
+
+  iceCandidatePoolSize: 10
 };
   }
 
@@ -149,14 +158,41 @@ class VoiceChat {
     }
 
     // Remote audio
-    pc.ontrack = (e) => {
-      const audioEl = new Audio();
-      audioEl.srcObject = e.streams[0];
-      audioEl.autoplay  = true;
-      audioEl.play().catch(() => {});
-      const entry = this.peers.get(peerId);
-      if (entry) entry.audioEl = audioEl;
-    };
+   pc.ontrack = async (e) => {
+  console.log('Remote track received from', peerId);
+
+  let audioEl = document.getElementById(`audio-${peerId}`);
+
+  if (!audioEl) {
+    audioEl = document.createElement('audio');
+    audioEl.id = `audio-${peerId}`;
+    audioEl.autoplay = true;
+    audioEl.playsInline = true;
+    document.body.appendChild(audioEl);
+  }
+
+  audioEl.srcObject = e.streams[0];
+
+  try {
+    await audioEl.play();
+    console.log('Audio playing');
+  } catch (err) {
+    console.warn('Autoplay blocked:', err);
+
+    document.body.addEventListener(
+      'click',
+      async () => {
+        try {
+          await audioEl.play();
+        } catch {}
+      },
+      { once: true }
+    );
+  }
+
+  const entry = this.peers.get(peerId);
+  if (entry) entry.audioEl = audioEl;
+};
 
     // ICE
     pc.onicecandidate = (e) => {
@@ -165,11 +201,35 @@ class VoiceChat {
       }
     };
 
-    pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
-        this._closePeer(peerId);
-      }
-    };
+   pc.onconnectionstatechange = () => {
+  console.log(
+    'Peer state:',
+    peerId,
+    pc.connectionState
+  );
+
+  if (
+    pc.connectionState === 'failed' ||
+    pc.connectionState === 'closed'
+  ) {
+    this._closePeer(peerId);
+  }
+};
+
+pc.oniceconnectionstatechange = () => {
+  console.log(
+    'ICE state:',
+    peerId,
+    pc.iceConnectionState
+  );
+};
+
+pc.onicecandidateerror = (e) => {
+  console.warn(
+    'ICE candidate error:',
+    e
+  );
+};
 
     return pc;
   }
