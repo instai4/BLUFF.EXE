@@ -1,17 +1,52 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
   <title>BLUFF — The Strategic Card Game</title>
+
+  <!-- PWA -->
+  <meta name="theme-color" content="#1A1A2E"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="Bluff"/>
+  <meta name="description" content="Multiplayer Bluff card game — play with friends via room codes"/>
+  <link rel="manifest" href="/manifest.json"/>
+  <link rel="apple-touch-icon" href="image/icon-192.png"/>
+  
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="BLUFF Card Game"/>
+  <meta property="og:description" content="Strategic multiplayer bluff card game with voice chat"/>
+  <meta property="og:type" content="website"/>
+
+  <!-- Fonts + Icons -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Boogaloo&family=Nunito:wght@400;600;700;800;900&family=Space+Mono:wght@400;700&display=swap"/>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
-  <link rel="stylesheet" href="css/style.css"/>
-  <link rel="stylesheet" href="css/game.css"/>
+  <link rel="stylesheet" href="/css/style.css"/>
+  <link rel="stylesheet" href="/css/game.css"/>
 </head>
 <body>
 
-<!-- ─── TOAST CONTAINER ─────────────────────────────────────────────────────── -->
+<!-- ─── TOAST ──────────────────────────────────────────────────────────────── -->
 <div class="toast-container" id="toastContainer"></div>
+
+<!-- ─── PWA INSTALL BANNER ──────────────────────────────────────────────────── -->
+<div class="pwa-banner" id="pwaBanner" style="display:none;">
+  <div class="pwa-banner-left">
+    <div class="pwa-icon"><i class="fa-solid fa-crown"></i></div>
+    <div>
+      <div class="pwa-title">Install Bluff App</div>
+      <div class="pwa-sub">Play anytime — no browser needed!</div>
+    </div>
+  </div>
+  <div class="pwa-banner-right">
+    <button class="pwa-install-btn" id="pwaInstallBtn">
+      <i class="fa-solid fa-download"></i> Install Free
+    </button>
+    <button class="pwa-close-btn" id="pwaDismissBtn"><i class="fa-solid fa-xmark"></i></button>
+  </div>
+</div>
 
 <!-- ══════════════════════════════════════════════════════════════════════════ -->
 <!--  LOBBY SCREEN                                                              -->
@@ -19,7 +54,7 @@
 <div id="lobby">
   <div class="lobby-title">
     <span class="title-crown"><i class="fa-solid fa-crown"></i></span>
-    <h1 class="game-title" data-text="BLUFF">ASR BLUFF</h1>
+    <h1 class="game-title">BLUFF</h1>
     <p class="title-sub">The Strategic Deception Card Game</p>
   </div>
 
@@ -29,7 +64,7 @@
     <!-- Nickname -->
     <div class="input-group">
       <label class="input-label" for="nicknameInput">
-        <i class="fa-solid fa-user-secret"></i>&nbsp; Your Alias
+        <i class="fa-solid fa-user-secret"></i> Your Battle Alias
       </label>
       <input class="text-input" id="nicknameInput" type="text" maxlength="18"
              placeholder="Enter your battle name..." autocomplete="off"/>
@@ -38,11 +73,9 @@
     <!-- Avatar Grid -->
     <div>
       <div class="avatar-section-title">
-        <i class="fa-solid fa-masks-theater"></i>&nbsp; Choose Your Character
+        <i class="fa-solid fa-masks-theater"></i> Choose Your Character
       </div>
-      <div class="avatar-grid" id="avatarGrid">
-        <!-- Populated by JS -->
-      </div>
+      <div class="avatar-grid" id="avatarGrid"></div>
     </div>
 
     <!-- Action Buttons -->
@@ -55,48 +88,50 @@
       </button>
     </div>
 
-    <!-- Join Room (hidden until button clicked) -->
+    <!-- Join Section -->
     <div class="join-section" id="joinSection">
-      <div class="divider">or enter room code</div>
+      <div class="divider">enter room code</div>
       <div class="join-row">
         <input class="text-input" id="roomCodeInput" type="text" maxlength="6"
-               placeholder="XXXXXX" autocomplete="off" style="text-transform:uppercase;letter-spacing:0.2em;"/>
-        <button class="btn btn-primary" id="joinRoomBtn" style="white-space:nowrap;min-width:120px;">
+               placeholder="XXXXXX" autocomplete="off"
+               style="text-transform:uppercase;letter-spacing:.25em;font-family:var(--fm);"/>
+        <button class="btn btn-primary" id="joinRoomBtn" style="white-space:nowrap;min-width:110px;">
           <i class="fa-solid fa-right-to-bracket"></i> Join
         </button>
       </div>
     </div>
+
+    <!-- Install as App -->
+    <div class="install-hint" id="installHintBtn" style="display:none;">
+      <i class="fa-solid fa-mobile-screen"></i> Install as free app on your phone
+    </div>
   </div>
 
-  <!-- Room Lobby (waiting for players) -->
-  <div id="roomLobby" class="rules-toggle" style="max-width:700px;width:100%;margin-top:20px;display:none;">
+  <!-- Room Lobby -->
+  <div id="roomLobby" style="display:none;width:100%;max-width:680px;margin-top:20px;">
     <div class="room-info-card">
       <div class="room-code-display">
-        <div class="room-code-label"><i class="fa-solid fa-link"></i>&nbsp; Share This Code</div>
+        <div class="room-code-label"><i class="fa-solid fa-link"></i> Share This Code</div>
         <div class="room-code-value" id="displayRoomCode" title="Click to copy">------</div>
-        <div class="copy-hint"><i class="fa-regular fa-copy"></i>&nbsp; Click code to copy</div>
+        <div class="copy-hint"><i class="fa-regular fa-copy"></i> Click to copy &amp; share with friends</div>
       </div>
 
-      <div style="margin-bottom:12px;">
-        <div class="avatar-section-title">
-          <i class="fa-solid fa-users"></i>&nbsp; Players in Room
-        </div>
-        <div class="players-waiting" id="playersWaiting">
-          <!-- Populated by JS -->
-        </div>
+      <div class="avatar-section-title" style="margin-bottom:10px;">
+        <i class="fa-solid fa-users"></i> Players in Room
       </div>
+      <div class="players-waiting" id="playersWaiting"></div>
 
-      <div style="display:flex;gap:12px;flex-wrap:wrap;">
-        <button class="btn btn-primary" id="startGameBtn" style="flex:1;min-width:180px;">
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:14px;">
+        <button class="btn btn-primary" id="startGameBtn" style="flex:1;min-width:160px;display:none;">
           <i class="fa-solid fa-play"></i> Start Game
         </button>
-        <button class="btn btn-secondary" id="leaveRoomBtn" style="min-width:120px;">
+        <button class="btn btn-secondary" id="leaveRoomBtn" style="min-width:100px;">
           <i class="fa-solid fa-arrow-left"></i> Leave
         </button>
       </div>
 
-      <div style="margin-top:12px;font-size:0.8rem;color:var(--text-secondary);text-align:center;" id="waitingMsg">
-        Waiting for host to start... (min 2 players)
+      <div style="margin-top:10px;font-size:.8rem;color:var(--txt3);text-align:center;" id="waitingMsg">
+        Waiting for host to start...
       </div>
     </div>
   </div>
@@ -104,18 +139,19 @@
   <!-- Rules Accordion -->
   <div class="rules-toggle">
     <div class="rules-header" id="rulesToggle">
-      <span><i class="fa-solid fa-book-open-reader"></i>&nbsp; How To Play — Rules</span>
+      <span><i class="fa-solid fa-book-open-reader"></i> How To Play</span>
       <i class="fa-solid fa-chevron-down" id="rulesChevron"></i>
     </div>
     <div class="rules-body" id="rulesBody">
-      <div class="rule-item"><i class="fa-solid fa-circle-dot"></i><span>Each player receives 6–8 cards. Remaining cards form the Draw Pile.</span></div>
-      <div class="rule-item"><i class="fa-solid fa-circle-dot"></i><span>On your turn, place 1 or more cards face-down and announce their rank. You may bluff!</span></div>
-      <div class="rule-item"><i class="fa-solid fa-circle-dot"></i><span><strong style="color:var(--red)">ANY</strong> player can call "Bluff!" after a play — not just the next player.</span></div>
-      <div class="rule-item"><i class="fa-solid fa-circle-dot"></i><span>Bluff caught: the liar picks up the entire pile. Wrong call: the accuser picks it up.</span></div>
-      <div class="rule-item"><i class="fa-solid fa-circle-dot"></i><span>Passing your turn costs 1 Draw Pile card as penalty.</span></div>
-      <div class="rule-item"><i class="fa-solid fa-crown" style="color:var(--gold)"></i><span>Playing all <strong>4 cards of the same rank</strong> grants the next player a FREE pass — no draw penalty!</span></div>
-      <div class="rule-item"><i class="fa-solid fa-circle-dot"></i><span>If the Draw Pile empties, discard pile reshuffles into a new Draw Pile.</span></div>
-      <div class="rule-item"><i class="fa-solid fa-trophy" style="color:var(--gold)"></i><span>First player to empty their hand wins the game!</span></div>
+      <div class="rule-item"><i class="fa-solid fa-circle-dot"></i><span>Each player gets 6–8 cards. Rest become the Draw Pile.</span></div>
+      <div class="rule-item"><i class="fa-solid fa-circle-dot"></i><span>On your turn, play 1+ cards face-down and announce their rank. You may bluff!</span></div>
+      <div class="rule-item"><i class="fa-solid fa-lock"></i><span><strong style="color:var(--c1)">Round Lock:</strong> Once a rank is played, everyone MUST claim that same rank until Bluff is called.</span></div>
+      <div class="rule-item"><i class="fa-solid fa-circle-dot"></i><span><strong style="color:var(--c1)">ANY</strong> player can shout "Bluff!" — not just the next player.</span></div>
+      <div class="rule-item"><i class="fa-solid fa-circle-dot"></i><span>Bluff caught = liar picks up pile. Wrong call = accuser picks up pile.</span></div>
+      <div class="rule-item"><i class="fa-solid fa-circle-dot"></i><span>Pass costs 1 Draw Pile card. Cannot pass before first play.</span></div>
+      <div class="rule-item"><i class="fa-solid fa-star" style="color:var(--c2)"></i><span>If you draw a card matching the locked rank — you get a bonus turn!</span></div>
+      <div class="rule-item"><i class="fa-solid fa-crown" style="color:var(--c2)"></i><span>Playing all 4 of a rank = FULL SET — next player gets free pass immunity!</span></div>
+      <div class="rule-item"><i class="fa-solid fa-trophy" style="color:var(--c3)"></i><span>First to empty their hand wins!</span></div>
     </div>
   </div>
 </div><!-- end #lobby -->
@@ -128,43 +164,49 @@
 
   <!-- Header -->
   <header class="game-header">
-    <div class="header-logo"><i class="fa-solid fa-crown" style="color:var(--gold);margin-right:6px;"></i>BLUFF</div>
+    <div class="header-logo"><i class="fa-solid fa-crown" style="color:var(--c2);margin-right:6px;"></i>BLUFF</div>
     <div class="header-center">
-      <div class="pill">
-        <i class="fa-solid fa-door-open"></i>
-        Room <strong id="headerRoomCode">------</strong>
-      </div>
-      <div class="pill">
-        <i class="fa-solid fa-users"></i>
-        <strong id="headerPlayerCount">0</strong> players
-      </div>
+      <div class="pill"><i class="fa-solid fa-door-open"></i> Room <strong id="headerRoomCode">------</strong></div>
+      <div class="pill"><i class="fa-solid fa-users"></i> <strong id="headerPlayerCount">0</strong></div>
     </div>
     <div class="header-right">
-      <button class="icon-btn" id="copyCodeBtn" title="Copy room code">
-        <i class="fa-regular fa-copy"></i>
+      <button class="icon-btn" id="copyCodeBtn" title="Copy room code"><i class="fa-regular fa-copy"></i></button>
+
+      <!-- MIC BUTTON -->
+      <button class="mic-btn mic-off" id="micBtn" title="Join voice chat">
+        <i class="fa-solid fa-microphone-slash" id="micIcon"></i>
+        <span class="mic-label" id="micLabel">Voice Off</span>
       </button>
-      <button class="icon-btn" id="toggleLogBtn" title="Toggle game log">
-        <i class="fa-solid fa-scroll"></i>
-      </button>
+
+      <button class="icon-btn" id="toggleLogBtn" title="Game log"><i class="fa-solid fa-scroll"></i></button>
     </div>
   </header>
 
+  <!-- Voice Chat Panel (appears when active) -->
+  <div class="voice-panel" id="voicePanel" style="display:none;">
+    <div class="voice-panel-title"><i class="fa-solid fa-tower-broadcast"></i> Voice Chat</div>
+    <div class="voice-participants" id="voiceParticipants"></div>
+    <button class="voice-mute-btn" id="voiceMuteBtn" title="Mute/Unmute">
+      <i class="fa-solid fa-microphone" id="muteIcon"></i>
+    </button>
+  </div>
+
   <!-- Table Scene -->
   <div class="table-scene" id="tableScene">
+
+    <!-- Locked Rank Banner -->
+    <div class="locked-rank-banner" id="lockedRankBanner">
+      <i class="fa-solid fa-lock"></i>
+      <span id="lockedRankText">Round: Aces</span>
+    </div>
 
     <!-- Status Banner -->
     <div class="status-banner" id="statusBanner">Waiting...</div>
 
     <!-- Draw Pile Info -->
     <div class="draw-pile-info">
-      <div class="dp-row">
-        <i class="fa-solid fa-layer-group"></i>
-        Draw Pile: <strong id="drawPileCount">0</strong>
-      </div>
-      <div class="dp-row">
-        <i class="fa-solid fa-cards-blank"></i>
-        Center Pile: <strong id="centerPileCount">0</strong>
-      </div>
+      <div class="dp-row"><i class="fa-solid fa-layer-group"></i> Draw: <strong id="drawPileCount">0</strong></div>
+      <div class="dp-row"><i class="fa-solid fa-cards-blank"></i> Pile: <strong id="centerPileCount">0</strong></div>
     </div>
 
     <!-- Game Log -->
@@ -175,25 +217,20 @@
 
     <!-- 3D Felt Table -->
     <div class="felt-table">
-      <!-- Center Area with Pile -->
       <div class="center-area" id="centerArea">
-        <div class="pile-stack" id="pileStack">
-          <!-- Cards rendered by JS -->
-        </div>
+        <div class="pile-stack" id="pileStack"></div>
         <div class="claim-display" id="claimDisplay" style="display:none;">
           <div class="claim-label">Last Claim</div>
           <div class="claim-value" id="claimValue">—</div>
         </div>
       </div>
-
-      <!-- Players Ring (positioned around table) -->
       <div class="players-ring" id="playersRing"></div>
     </div>
 
     <!-- Bluff Window Overlay -->
     <div class="bluff-overlay" id="bluffOverlay">
       <div class="bluff-window">
-        <div class="bluff-window-title"><i class="fa-solid fa-eye-slash"></i>&nbsp; Challenge Window</div>
+        <div class="bluff-window-title"><i class="fa-solid fa-eye-slash"></i> Challenge Window</div>
         <div class="bluff-claim-info" id="bluffClaimInfo">— × —</div>
         <div class="bluff-sub" id="bluffSub">Do you believe this play?</div>
         <div class="bluff-actions">
@@ -211,46 +248,22 @@
 
   <!-- Player Hand Area -->
   <div class="hand-area" id="handArea">
-
     <div class="hand-top-row">
       <div class="hand-info">
         <div class="my-avatar-wrap" id="myAvatarSmall"></div>
         <div>
           <div class="my-name" id="myNameLabel">You</div>
-          <div class="my-card-count"><span id="myCardCount">0</span> cards in hand</div>
+          <div class="my-card-count"><span id="myCardCount">0</span> cards</div>
         </div>
       </div>
-
       <div class="hand-actions">
         <div class="selected-count" id="selectedCount" style="display:none;">
-          <i class="fa-solid fa-check-square"></i> <span id="selectedNum">0</span> selected
+          <i class="fa-solid fa-check-square"></i> <span id="selectedNum">0</span>
         </div>
-
-        <!-- Rank selector -->
-        <div class="rank-selector-wrap" id="rankSelectorWrap" style="display:none;">
-          <select class="rank-select" id="rankSelect">
-            <option value="">Claim rank...</option>
-            <option value="A">Ace</option>
-            <option value="2">2</option>
-            <option value="3">3</option>
-            <option value="4">4</option>
-            <option value="5">5</option>
-            <option value="6">6</option>
-            <option value="7">7</option>
-            <option value="8">8</option>
-            <option value="9">9</option>
-            <option value="10">10</option>
-            <option value="J">Jack</option>
-            <option value="Q">Queen</option>
-            <option value="K">King</option>
-          </select>
-          <i class="fa-solid fa-chevron-down rank-select-arrow"></i>
-        </div>
-
+        <div id="rankSelectorWrap" style="display:none;"></div>
         <button class="btn-play" id="playCardsBtn" disabled>
-          <i class="fa-solid fa-hand"></i> Play Cards
+          <i class="fa-solid fa-hand"></i> Play
         </button>
-
         <button class="btn-pass" id="passBtn" disabled>
           <i class="fa-solid fa-forward-fast"></i> Pass
         </button>
@@ -259,33 +272,27 @@
 
     <!-- Cards Fan -->
     <div class="cards-container" id="cardsContainer">
-      <div class="cards-fan" id="cardsFan">
-        <!-- Cards rendered by JS -->
-      </div>
-
-      <!-- Not-my-turn overlay -->
+      <div class="cards-fan" id="cardsFan"></div>
       <div class="waiting-indicator" id="waitingIndicator" style="display:none;">
-        <i class="fa-solid fa-hourglass-half"></i>
-        Waiting for your turn...
+        <i class="fa-solid fa-hourglass-half"></i> Waiting for your turn...
       </div>
     </div>
-
-  </div><!-- end .hand-area -->
+  </div>
 
   <!-- Game Over Overlay -->
   <div class="game-over-overlay" id="gameOverOverlay">
     <div class="game-over-card">
-      <div class="winner-crown-big"><i class="fa-solid fa-crown"></i></div>
+      <span class="winner-crown-big"><i class="fa-solid fa-crown"></i></span>
       <div class="game-over-title">Champion</div>
       <div class="winner-avatar-wrap" id="winnerAvatar"></div>
       <div class="winner-name" id="winnerName">—</div>
-      <div class="winner-sub">has emptied their hand and won the game!</div>
+      <div class="winner-sub">emptied their hand and won!</div>
       <div class="game-over-actions">
         <button class="btn btn-primary" id="restartBtn" style="display:none;">
           <i class="fa-solid fa-rotate-right"></i> Play Again
         </button>
         <button class="btn btn-secondary" id="quitBtn">
-          <i class="fa-solid fa-door-open"></i> Leave Game
+          <i class="fa-solid fa-door-open"></i> Leave
         </button>
       </div>
     </div>
@@ -293,10 +300,16 @@
 
 </div><!-- end #game-app -->
 
+<!-- Mic permission denied tooltip -->
+<div class="mic-denied" id="micDenied" style="display:none;">
+  <i class="fa-solid fa-microphone-slash"></i>
+  Microphone access denied. Enable it in browser settings.
+</div>
 
-<!-- ─── Scripts ──────────────────────────────────────────────────────────────── -->
-<script src="socket.io/socket.io.js"></script>
+<!-- Scripts -->
+<script src="/socket.io/socket.io.js"></script>
 <script src="js/avatars.js"></script>
+<script src="js/voice.js"></script>
 <script src="js/game.js"></script>
 </body>
 </html>
