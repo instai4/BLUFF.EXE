@@ -12,7 +12,7 @@ class VoiceChat {
     this.socket        = null;   // set after socket connects
     this.localStream   = null;   // microphone MediaStream
     this.peers         = new Map(); // peerId → { pc, audioEl, gainNode }
-    this.isMuted       = false;
+    this.isMuted       = true;
     this.isActive      = false;  // true = joined voice
     this.audioCtx      = null;   // AudioContext for speaking detection
     this.analyser      = null;
@@ -45,19 +45,36 @@ class VoiceChat {
   }
 
   // ─── Called once socket is ready ─────────────────────────────────────────
-  init(socket) {
-    this.socket = socket;
-    this._bindSignaling();
-  }
+init(socket) {
+  this.socket = socket;
+  this._bindSignaling();
+
+  setTimeout(() => {
+    this.join(true);
+  }, 1000);
+}
 
   // ─── Activate mic and join voice room ────────────────────────────────────
-  async join() {
+  async join(silent = false) {
     if (this.isActive) return true;
     try {
-      this.localStream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 44100 },
-        video: false
-      });
+     this.localStream = await navigator.mediaDevices.getUserMedia({
+  audio: {
+    echoCancellation: true,
+    noiseSuppression: true,
+    sampleRate: 44100
+  },
+  video: false
+});
+
+// Start muted if silent join
+if (silent) {
+  this.localStream.getAudioTracks().forEach(t => {
+    t.enabled = false;
+  });
+
+  this.isMuted = true;
+}
       this.isActive = true;
       this._startSpeakingDetection();
       this.socket.emit('voice_join');

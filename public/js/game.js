@@ -245,23 +245,40 @@ function renderVoiceParticipants(participants) {
 async function toggleVoiceChat() {
   const vc = window.voiceChat;
 
-  if (vc.isActive) {
-    vc.leave();
-    updateMicBtn(false, false);
-    $('voicePanel').style.display = 'none';
-    showToast('Left voice chat.', 'success');
-  } else {
-    updateMicBtn(null, null); // loading state
-    const ok = await vc.join();
+  // FIRST TIME JOIN
+  if (!vc.isActive) {
+    updateMicBtn(null, null);
+
+    const ok = await vc.join(true); // join muted
+
     if (ok) {
-      updateMicBtn(true, false);
-      showToast('Joined voice chat!', 'success');
+      updateMicBtn(true, true);
+
+      $('voicePanel').style.display = 'block';
+
+      showToast('Voice connected (muted)', 'success');
     } else {
       updateMicBtn(false, false);
+
       $('micDenied').style.display = 'block';
-      setTimeout(() => $('micDenied').style.display='none', 3500);
+
+      setTimeout(() => {
+        $('micDenied').style.display = 'none';
+      }, 3500);
     }
+
+    return;
   }
+
+  // TOGGLE MUTE / UNMUTE
+  const muted = vc.toggleMute();
+
+  updateMicBtn(true, muted);
+
+  showToast(
+    muted ? 'Microphone muted' : 'Microphone unmuted',
+    'success'
+  );
 }
 
 function updateMicBtn(isActive, isMuted) {
