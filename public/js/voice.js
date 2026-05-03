@@ -144,34 +144,7 @@ toggleMute() {
   return this.isMuted;
 }
   // ─── Leave voice, clean up all peers ─────────────────────────────────────
-  leave() {
-    if (this.localStream) {
-      this.localStream.getTracks().forEach(t => t.stop());
-      this.localStream = null;
-    }
-    this.peers.forEach((_, id) => this._closePeer(id));
-    this.peers.clear();
-    this.isActive  = false;
-    this.isMuted   = false;
-    this.isSpeaking= false;
-    if (this.analyser) { this.analyser = null; }
-    if (this.audioCtx) { this.audioCtx.close().catch(() => {}); this.audioCtx = null; }
-    clearTimeout(this.speakTimer);
-    this.socket.emit('voice_leave');
-  }
 
-  // ─── Mute / Unmute ───────────────────────────────────────────────────────
- toggleMute() {
-  if (!this.localStream) return false;
-
-  this.isMuted = !this.isMuted;
-
-  this.localStream.getAudioTracks().forEach(track => {
-    track.enabled = !this.isMuted;
-  });
-
-  return this.isMuted;
-}
 
   // ─── Bind all signaling events from server ────────────────────────────────
   _bindSignaling() {
