@@ -55,36 +55,94 @@ init(socket) {
 }
 
   // ─── Activate mic and join voice room ────────────────────────────────────
-  async join(silent = false) {
-    if (this.isActive) return true;
-    try {
-     this.localStream = await navigator.mediaDevices.getUserMedia({
-  audio: {
-    echoCancellation: true,
-    noiseSuppression: true,
-    sampleRate: 44100
-  },
-  video: false
-});
+// ─── Activate mic and join voice room ────────────────────────────────────
+async join(silent = false) {
+  if (this.isActive) return true;
 
-// Start muted if silent join
-if (silent) {
-  this.localStream.getAudioTracks().forEach(t => {
-    t.enabled = false;
-  });
+  try {
+    // Get microphone stream
+    this.localStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        sampleRate: 44100
+      },
+      video: false
+    });
 
-  this.isMuted = true;
-}
-      this.isActive = true;
-      this._startSpeakingDetection();
-      this.socket.emit('voice_join');
-      return true;
-    } catch (err) {
-      console.warn('Mic access denied:', err);
-      return false;
+    // IMPORTANT:
+    // Keep track present for WebRTC negotiation
+    // but disable it if joining muted
+    if (silent) {
+      this.isMuted = true;
+
+      this.localStream.getAudioTracks().forEach(track => {
+        track.enabled = false;
+      });
+    } else {
+      this.isMuted = false;
+
+      this.localStream.getAudioTracks().forEach(track => {
+        track.enabled = true;
+      });
     }
+
+    this.isActive = true;
+
+    // Start speaking detection
+    this._startSpeakingDetection();
+
+    // Join signaling room
+    this.socket.emit('voice_join');
+
+    return true;
+
+  } catch (err) {
+    console.warn('Mic access denied:', err);
+    return false;
+  }
+}
+
+// ─── Leave voice, clean up all peers ─────────────────────────────────────
+leave() {
+  if (this.localStream) {
+    this.localStream.getTracks().forEach(track => track.stop());
+    this.localStream = null;
   }
 
+  this.peers.forEach((_, id) => this._closePeer(id));
+  this.peers.clear();
+
+  this.isActive   = false;
+  this.isMuted    = false;
+  this.isSpeaking = false;
+
+  if (this.analyser) {
+    this.analyser = null;
+  }
+
+  if (this.audioCtx) {
+    this.audioCtx.close().catch(() => {});
+    this.audioCtx = null;
+  }
+
+  clearTimeout(this.speakTimer);
+
+  this.socket.emit('voice_leave');
+}
+
+// ─── Mute / Unmute ───────────────────────────────────────────────────────
+toggleMute() {
+  if (!this.localStream) return false;
+
+  this.isMuted = !this.isMuted;
+
+  this.localStream.getAudioTracks().forEach(track => {
+    track.enabled = !this.isMuted;
+  });
+
+  return this.isMuted;
+}
   // ─── Leave voice, clean up all peers ─────────────────────────────────────
   leave() {
     if (this.localStream) {
@@ -103,12 +161,17 @@ if (silent) {
   }
 
   // ─── Mute / Unmute ───────────────────────────────────────────────────────
-  toggleMute() {
-    if (!this.localStream) return false;
-    this.isMuted = !this.isMuted;
-    this.localStream.getAudioTracks().forEach(t => { t.enabled = !this.isMuted; });
-    return this.isMuted;
-  }
+ toggleMute() {
+  if (!this.localStream) return false;
+
+  this.isMuted = !this.isMuted;
+
+  this.localStream.getAudioTracks().forEach(track => {
+    track.enabled = !this.isMuted;
+  });
+
+  return this.isMuted;
+}
 
   // ─── Bind all signaling events from server ────────────────────────────────
   _bindSignaling() {
