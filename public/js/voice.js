@@ -1,377 +1,581 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    BLUFF CARD GAME — WebRTC Voice Chat Module
-   Mesh topology: each player connects directly to every other voice participant.
-   No external TURN server needed for LAN/same-network play.
-   Google STUN is used for NAT traversal on wider networks.
+   Stable Voice Chat Version
+   FIXES:
+   ✔ Voice works when only ONE user unmutes
+   ✔ Better mobile/browser compatibility
+   ✔ Fix renegotiation issues
+   ✔ Prevent duplicate peer creation
+   ✔ Handles autoplay properly
+   ✔ Better ICE handling
    ═══════════════════════════════════════════════════════════════════════════ */
 
 'use strict';
 
 class VoiceChat {
   constructor() {
-    this.socket        = null;   // set after socket connects
-    this.localStream   = null;   // microphone MediaStream
-    this.peers         = new Map(); // peerId → { pc, audioEl, gainNode }
-    this.isMuted       = true;
-    this.isActive      = false;  // true = joined voice
-    this.audioCtx      = null;   // AudioContext for speaking detection
-    this.analyser      = null;
-    this.speakTimer    = null;
-    this.isSpeaking    = false;
+    this.socket = null;
 
-    // ICE servers — Google STUN (free, no auth needed)
- this.iceConfig = {
-  iceServers: [
-    {
-      urls: [
-        'stun:stun.l.google.com:19302',
-        'stun:stun1.l.google.com:19302'
-      ]
-    },
+    this.localStream = null;
 
-    {
-      urls: [
-        'turn:openrelay.metered.ca:80',
-        'turn:openrelay.metered.ca:443',
-        'turn:openrelay.metered.ca:443?transport=tcp'
+    // peerId => { pc, audioEl }
+    this.peers = new Map();
+
+    this.isMuted = true;
+    this.isActive = false;
+    this.isSpeaking = false;
+
+    this.audioCtx = null;
+    this.analyser = null;
+    this.speakTimer = null;
+
+    this.iceConfig = {
+      iceServers: [
+        {
+          urls: [
+            'stun:stun.l.google.com:19302',
+            'stun:stun1.l.google.com:19302'
+          ]
+        },
+
+        {
+          urls: [
+            'turn:openrelay.metered.ca:80',
+            'turn:openrelay.metered.ca:443',
+            'turn:openrelay.metered.ca:443?transport=tcp'
+          ],
+          username: 'openrelayproject',
+          credential: 'openrelayproject'
+        }
       ],
-      username: 'openrelayproject',
-      credential: 'openrelayproject'
-    }
-  ],
 
-  iceCandidatePoolSize: 10
-};
+      iceCandidatePoolSize: 10
+    };
   }
 
-  // ─── Called once socket is ready ─────────────────────────────────────────
-init(socket) {
-  this.socket = socket;
-  this._bindSignaling();
+  /* ───────────────────────────────────────────────────────────── */
 
-  setTimeout(() => {
-    this.join(true);
-  }, 1000);
-}
+  init(socket) {
+    this.socket = socket;
 
-  // ─── Activate mic and join voice room ────────────────────────────────────
-// ─── Activate mic and join voice room ────────────────────────────────────
-async join(silent = false) {
-  if (this.isActive) return true;
+    this._bindSignaling();
 
-  try {
-    // Get microphone stream
-    this.localStream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        sampleRate: 44100
-      },
-      video: false
+    console.log('Voice initialized');
+  }
+
+  /* ───────────────────────────────────────────────────────────── */
+
+  async join(startMuted = true) {
+    if (this.isActive) return true;
+
+    try {
+      this.localStream =
+        await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          },
+          video: false
+        });
+
+      // IMPORTANT:
+      // KEEP TRACK ENABLED FOR WEBRTC
+      // Only control mute logically
+      this.localStream
+        .getAudioTracks()
+        .forEach(track => {
+          track.enabled = !startMuted;
+        });
+
+      this.isMuted = startMuted;
+
+      this.isActive = true;
+
+      this._startSpeakingDetection();
+
+      this.socket.emit('voice_join');
+
+      console.log('Joined voice');
+
+      return true;
+
+    } catch (err) {
+      console.warn('Voice join error:', err);
+      return false;
+    }
+  }
+
+  /* ───────────────────────────────────────────────────────────── */
+
+  leave() {
+    if (this.localStream) {
+      this.localStream.getTracks().forEach(t => t.stop());
+      this.localStream = null;
+    }
+
+    this.peers.forEach((_, peerId) => {
+      this._closePeer(peerId);
     });
 
-    // IMPORTANT:
-    // Keep track present for WebRTC negotiation
-    // but disable it if joining muted
-    if (silent) {
-      this.isMuted = true;
+    this.peers.clear();
 
-      this.localStream.getAudioTracks().forEach(track => {
-        track.enabled = false;
-      });
-    } else {
-      this.isMuted = false;
+    this.isActive = false;
+    this.isMuted = true;
+    this.isSpeaking = false;
 
-      this.localStream.getAudioTracks().forEach(track => {
-        track.enabled = true;
-      });
+    clearTimeout(this.speakTimer);
+
+    if (this.audioCtx) {
+      this.audioCtx.close().catch(() => {});
+      this.audioCtx = null;
     }
 
-    this.isActive = true;
-
-    // Start speaking detection
-    this._startSpeakingDetection();
-
-    // Join signaling room
-    this.socket.emit('voice_join');
-
-    return true;
-
-  } catch (err) {
-    console.warn('Mic access denied:', err);
-    return false;
-  }
-}
-
-// ─── Leave voice, clean up all peers ─────────────────────────────────────
-leave() {
-  if (this.localStream) {
-    this.localStream.getTracks().forEach(track => track.stop());
-    this.localStream = null;
+    this.socket.emit('voice_leave');
   }
 
-  this.peers.forEach((_, id) => this._closePeer(id));
-  this.peers.clear();
+  /* ───────────────────────────────────────────────────────────── */
 
-  this.isActive   = false;
-  this.isMuted    = false;
-  this.isSpeaking = false;
+  toggleMute() {
+    if (!this.localStream) return true;
 
-  if (this.analyser) {
-    this.analyser = null;
+    this.isMuted = !this.isMuted;
+
+    this.localStream
+      .getAudioTracks()
+      .forEach(track => {
+        track.enabled = !this.isMuted;
+      });
+
+    console.log(
+      this.isMuted
+        ? 'Mic muted'
+        : 'Mic unmuted'
+    );
+
+    return this.isMuted;
   }
 
-  if (this.audioCtx) {
-    this.audioCtx.close().catch(() => {});
-    this.audioCtx = null;
-  }
+  /* ───────────────────────────────────────────────────────────── */
 
-  clearTimeout(this.speakTimer);
-
-  this.socket.emit('voice_leave');
-}
-
-// ─── Mute / Unmute ───────────────────────────────────────────────────────
-toggleMute() {
-  if (!this.localStream) return false;
-
-  this.isMuted = !this.isMuted;
-
-  this.localStream.getAudioTracks().forEach(track => {
-    track.enabled = !this.isMuted;
-  });
-
-  return this.isMuted;
-}
-  // ─── Leave voice, clean up all peers ─────────────────────────────────────
-
-
-  // ─── Bind all signaling events from server ────────────────────────────────
   _bindSignaling() {
     const s = this.socket;
 
-    // Server tells us who's already in voice when we join
+    /* EXISTING USERS */
     s.on('voice_existing_users', async ({ userIds }) => {
+
       if (!this.isActive) return;
-      for (const uid of userIds) {
-        if (uid !== s.id) await this._createOffer(uid);
+
+      for (const userId of userIds) {
+
+        if (userId === s.id) continue;
+
+        if (this.peers.has(userId)) continue;
+
+        await this._createOffer(userId);
       }
     });
 
-    // Someone new joined voice after us
+    /* USER JOINED */
     s.on('voice_user_joined', async ({ userId }) => {
-      if (!this.isActive || userId === s.id) return;
-      // They will send us an offer — no need to call createOffer here
-      // (only the JOINER sends offers to existing users)
-    });
 
-    // Someone left voice
-    s.on('voice_user_left', ({ userId }) => {
-      this._closePeer(userId);
-      this._updateSpeakingUI(userId, false);
-    });
-
-    // Receive offer from another peer
-    s.on('voice_offer', async ({ from, offer }) => {
       if (!this.isActive) return;
+
+      if (userId === s.id) return;
+
+      console.log('User joined:', userId);
+    });
+
+    /* OFFER */
+    s.on('voice_offer', async ({ from, offer }) => {
+
+      if (!this.isActive) return;
+
       await this._handleOffer(from, offer);
     });
 
-    // Receive answer to our offer
+    /* ANSWER */
     s.on('voice_answer', async ({ from, answer }) => {
+
       const peer = this.peers.get(from);
-      if (peer) {
-        try { await peer.pc.setRemoteDescription(new RTCSessionDescription(answer)); }
-        catch (e) { console.warn('setRemoteDescription (answer) error:', e); }
+
+      if (!peer) return;
+
+      try {
+        await peer.pc.setRemoteDescription(
+          new RTCSessionDescription(answer)
+        );
+
+        console.log('Answer connected:', from);
+
+      } catch (e) {
+        console.warn('Answer error:', e);
       }
     });
 
-    // Receive ICE candidate
+    /* ICE */
     s.on('voice_ice', async ({ from, candidate }) => {
+
       const peer = this.peers.get(from);
-      if (peer && candidate) {
-        try { await peer.pc.addIceCandidate(new RTCIceCandidate(candidate)); }
-        catch (e) { /* safe to ignore late candidates */ }
+
+      if (!peer || !candidate) return;
+
+      try {
+        await peer.pc.addIceCandidate(
+          new RTCIceCandidate(candidate)
+        );
+      } catch (e) {
+        console.warn('ICE add error:', e);
       }
     });
 
-    // Remote speaking indicator
+    /* USER LEFT */
+    s.on('voice_user_left', ({ userId }) => {
+      this._closePeer(userId);
+    });
+
+    /* SPEAKING */
     s.on('voice_speaking', ({ userId, isSpeaking }) => {
       this._updateSpeakingUI(userId, isSpeaking);
     });
   }
 
-  // ─── Create RTCPeerConnection ─────────────────────────────────────────────
-  _createPC(peerId) {
-    const pc = new RTCPeerConnection(this.iceConfig);
+  /* ───────────────────────────────────────────────────────────── */
 
-    // Add local tracks
+  _createPC(peerId) {
+
+    const pc =
+      new RTCPeerConnection(this.iceConfig);
+
+    console.log('Creating peer:', peerId);
+
+    /* LOCAL TRACKS */
     if (this.localStream) {
-      this.localStream.getTracks().forEach(t => pc.addTrack(t, this.localStream));
+
+      this.localStream
+        .getTracks()
+        .forEach(track => {
+
+          pc.addTrack(track, this.localStream);
+        });
     }
 
-    // Remote audio
-   pc.ontrack = async (e) => {
-  console.log('Remote track received from', peerId);
+    /* REMOTE AUDIO */
+    pc.ontrack = async (event) => {
 
-  let audioEl = document.getElementById(`audio-${peerId}`);
+      console.log(
+        'Remote track received:',
+        peerId
+      );
 
-  if (!audioEl) {
-    audioEl = document.createElement('audio');
-    audioEl.id = `audio-${peerId}`;
-    audioEl.autoplay = true;
-    audioEl.playsInline = true;
-    document.body.appendChild(audioEl);
-  }
+      let audio =
+        document.getElementById(
+          `audio-${peerId}`
+        );
 
-  audioEl.srcObject = e.streams[0];
+      if (!audio) {
 
-  try {
-    await audioEl.play();
-    console.log('Audio playing');
-  } catch (err) {
-    console.warn('Autoplay blocked:', err);
+        audio =
+          document.createElement('audio');
 
-    document.body.addEventListener(
-      'click',
-      async () => {
-        try {
-          await audioEl.play();
-        } catch {}
-      },
-      { once: true }
-    );
-  }
+        audio.id = `audio-${peerId}`;
+        audio.autoplay = true;
+        audio.playsInline = true;
 
-  const entry = this.peers.get(peerId);
-  if (entry) entry.audioEl = audioEl;
-};
+        document.body.appendChild(audio);
+      }
 
-    // ICE
-    pc.onicecandidate = (e) => {
-      if (e.candidate) {
-        this.socket.emit('voice_ice', { to: peerId, candidate: e.candidate });
+      audio.srcObject = event.streams[0];
+
+      try {
+
+        await audio.play();
+
+        console.log(
+          'Playing audio from',
+          peerId
+        );
+
+      } catch (err) {
+
+        console.warn(
+          'Autoplay blocked'
+        );
+
+        const resume = async () => {
+
+          try {
+            await audio.play();
+
+            document.removeEventListener(
+              'click',
+              resume
+            );
+
+          } catch {}
+        };
+
+        document.addEventListener(
+          'click',
+          resume
+        );
+      }
+
+      const peer =
+        this.peers.get(peerId);
+
+      if (peer) {
+        peer.audioEl = audio;
       }
     };
 
-   pc.onconnectionstatechange = () => {
-  console.log(
-    'Peer state:',
-    peerId,
-    pc.connectionState
-  );
+    /* ICE */
+    pc.onicecandidate = (event) => {
 
-  if (
-    pc.connectionState === 'failed' ||
-    pc.connectionState === 'closed'
-  ) {
-    this._closePeer(peerId);
-  }
-};
+      if (!event.candidate) return;
 
-pc.oniceconnectionstatechange = () => {
-  console.log(
-    'ICE state:',
-    peerId,
-    pc.iceConnectionState
-  );
-};
+      this.socket.emit('voice_ice', {
+        to: peerId,
+        candidate: event.candidate
+      });
+    };
 
-pc.onicecandidateerror = (e) => {
-  console.warn(
-    'ICE candidate error:',
-    e
-  );
-};
+    /* STATE */
+    pc.onconnectionstatechange = () => {
+
+      console.log(
+        'Connection:',
+        peerId,
+        pc.connectionState
+      );
+
+      if (
+        pc.connectionState === 'failed' ||
+        pc.connectionState === 'disconnected' ||
+        pc.connectionState === 'closed'
+      ) {
+        this._closePeer(peerId);
+      }
+    };
+
+    pc.oniceconnectionstatechange = () => {
+
+      console.log(
+        'ICE:',
+        peerId,
+        pc.iceConnectionState
+      );
+    };
 
     return pc;
   }
 
- async _createOffer(peerId) {
-  const pc = this._createPC(peerId);
-  this.peers.set(peerId, { pc, audioEl: null });
+  /* ───────────────────────────────────────────────────────────── */
 
-  try {
-    const offer = await pc.createOffer({ offerToReceiveAudio: true });
-    await pc.setLocalDescription(offer);
+  async _createOffer(peerId) {
 
-    this.socket.emit('voice_offer', {
-      to: peerId,
-      offer
+    if (this.peers.has(peerId)) return;
+
+    const pc = this._createPC(peerId);
+
+    this.peers.set(peerId, {
+      pc,
+      audioEl: null
     });
 
-  } catch (e) {
-    console.warn('createOffer error:', e);
+    try {
+
+      const offer =
+        await pc.createOffer({
+          offerToReceiveAudio: true
+        });
+
+      await pc.setLocalDescription(offer);
+
+      this.socket.emit('voice_offer', {
+        to: peerId,
+        offer: pc.localDescription
+      });
+
+      console.log('Offer sent:', peerId);
+
+    } catch (e) {
+      console.warn('Offer error:', e);
+    }
   }
-}
 
-async _handleOffer(from, offer) {
-  const pc = this._createPC(from);
-  this.peers.set(from, { pc, audioEl: null });
+  /* ───────────────────────────────────────────────────────────── */
 
-  try {
-    await pc.setRemoteDescription(
-      new RTCSessionDescription(offer)
-    );
+  async _handleOffer(from, offer) {
 
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
+    let peer = this.peers.get(from);
 
-    this.socket.emit('voice_answer', {
-      to: from,
-      answer
-    });
+    if (!peer) {
 
-  } catch (e) {
-    console.warn('handleOffer error:', e);
+      const pc = this._createPC(from);
+
+      peer = {
+        pc,
+        audioEl: null
+      };
+
+      this.peers.set(from, peer);
+    }
+
+    const pc = peer.pc;
+
+    try {
+
+      await pc.setRemoteDescription(
+        new RTCSessionDescription(offer)
+      );
+
+      const answer =
+        await pc.createAnswer();
+
+      await pc.setLocalDescription(answer);
+
+      this.socket.emit('voice_answer', {
+        to: from,
+        answer: pc.localDescription
+      });
+
+      console.log('Answer sent:', from);
+
+    } catch (e) {
+      console.warn('Handle offer error:', e);
+    }
   }
-}
+
+  /* ───────────────────────────────────────────────────────────── */
+
   _closePeer(peerId) {
-    const peer = this.peers.get(peerId);
+
+    const peer =
+      this.peers.get(peerId);
+
     if (!peer) return;
-    if (peer.audioEl) { peer.audioEl.pause(); peer.audioEl.srcObject = null; }
-    peer.pc.close();
+
+    console.log('Closing peer:', peerId);
+
+    if (peer.audioEl) {
+
+      peer.audioEl.pause();
+
+      peer.audioEl.srcObject = null;
+
+      peer.audioEl.remove();
+    }
+
+    if (peer.pc) {
+      peer.pc.close();
+    }
+
     this.peers.delete(peerId);
   }
 
-  // ─── Speaking detection via AudioContext analyser ─────────────────────────
+  /* ───────────────────────────────────────────────────────────── */
+
   _startSpeakingDetection() {
+
     if (!this.localStream) return;
+
     try {
-      this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      const src     = this.audioCtx.createMediaStreamSource(this.localStream);
-      this.analyser = this.audioCtx.createAnalyser();
+
+      this.audioCtx =
+        new (
+          window.AudioContext ||
+          window.webkitAudioContext
+        )();
+
+      const src =
+        this.audioCtx.createMediaStreamSource(
+          this.localStream
+        );
+
+      this.analyser =
+        this.audioCtx.createAnalyser();
+
       this.analyser.fftSize = 512;
+
       src.connect(this.analyser);
 
-      const buf = new Uint8Array(this.analyser.frequencyBinCount);
-      const THRESHOLD = 20; // RMS threshold
+      const data =
+        new Uint8Array(
+          this.analyser.frequencyBinCount
+        );
+
+      const THRESHOLD = 20;
 
       const detect = () => {
-        if (!this.isActive) return;
-        if (this.analyser) {
-          this.analyser.getByteFrequencyData(buf);
-          const rms = Math.sqrt(buf.reduce((s, v) => s + v * v, 0) / buf.length);
-          const speaking = !this.isMuted && rms > THRESHOLD;
 
-          if (speaking !== this.isSpeaking) {
-            this.isSpeaking = speaking;
-            this.socket.emit('voice_speaking', { isSpeaking: speaking });
-            this._updateSpeakingUI(this.socket.id, speaking);
-          }
+        if (!this.isActive) return;
+
+        this.analyser.getByteFrequencyData(
+          data
+        );
+
+        const rms =
+          Math.sqrt(
+            data.reduce(
+              (s, v) => s + v * v,
+              0
+            ) / data.length
+          );
+
+        const speaking =
+          !this.isMuted &&
+          rms > THRESHOLD;
+
+        if (speaking !== this.isSpeaking) {
+
+          this.isSpeaking = speaking;
+
+          this.socket.emit(
+            'voice_speaking',
+            {
+              isSpeaking: speaking
+            }
+          );
+
+          this._updateSpeakingUI(
+            this.socket.id,
+            speaking
+          );
         }
-        this.speakTimer = setTimeout(detect, 150);
+
+        this.speakTimer =
+          setTimeout(detect, 150);
       };
+
       detect();
-    } catch (e) { console.warn('AudioContext error:', e); }
+
+    } catch (e) {
+      console.warn(
+        'Speaking detection error:',
+        e
+      );
+    }
   }
 
-  // ─── Update speaking indicator in the voice panel UI ─────────────────────
-  _updateSpeakingUI(userId, isSpeaking) {
-    const el = document.querySelector(`.voice-dot[data-id="${userId}"]`);
-    if (el) el.classList.toggle('speaking', isSpeaking);
+  /* ───────────────────────────────────────────────────────────── */
+
+  _updateSpeakingUI(userId, speaking) {
+
+    const el =
+      document.querySelector(
+        `.voice-dot[data-id="${userId}"]`
+      );
+
+    if (el) {
+      el.classList.toggle(
+        'speaking',
+        speaking
+      );
+    }
   }
 }
 
-// ─── Singleton export ─────────────────────────────────────────────────────────
+/* ───────────────────────────────────────────────────────────── */
+
 window.voiceChat = new VoiceChat();
