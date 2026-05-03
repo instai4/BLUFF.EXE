@@ -11,7 +11,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
   <meta name="apple-mobile-web-app-title" content="Bluff"/>
   <meta name="description" content="Multiplayer Bluff card game — play with friends via room codes"/>
-  <link rel="manifest" href="/manifest.json"/>
+  <link rel="manifest" href="manifest.json"/>
   <link rel="apple-touch-icon" href="image/icon-192.png"/>
   
 
@@ -23,8 +23,8 @@
   <!-- Fonts + Icons -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Boogaloo&family=Nunito:wght@400;600;700;800;900&family=Space+Mono:wght@400;700&display=swap"/>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
-  <link rel="stylesheet" href="/css/style.css"/>
-  <link rel="stylesheet" href="/css/game.css"/>
+  <link rel="stylesheet" href="css/style.css"/>
+  <link rel="stylesheet" href="css/game.css"/>
 </head>
 <body>
 
@@ -54,7 +54,7 @@
 <div id="lobby">
   <div class="lobby-title">
     <span class="title-crown"><i class="fa-solid fa-crown"></i></span>
-    <h1 class="game-title">BLUFF</h1>
+    <h1 class="game-title">ASR BLUFF</h1>
     <p class="title-sub">The Strategic Deception Card Game</p>
   </div>
 
@@ -305,6 +305,9 @@
   <i class="fa-solid fa-microphone-slash"></i>
   Microphone access denied. Enable it in browser settings.
 </div>
+<button id="installBtn" style="display:none;">
+  Install App
+</button>
 
 <!-- Scripts -->
 <script src="/socket.io/socket.io.js"></script>
