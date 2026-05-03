@@ -243,42 +243,119 @@ function renderVoiceParticipants(participants) {
 }
 
 async function toggleVoiceChat() {
+
+  // ─────────────────────────────────────
+  // SAFETY CHECKS
+  // ─────────────────────────────────────
+
+  if (!window.voiceChat) {
+    showToast('Voice system not loaded');
+    return;
+  }
+
   const vc = window.voiceChat;
 
-  // FIRST TIME JOIN
+  // Browser support
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showToast('Microphone not supported in this browser');
+    return;
+  }
+
+  // HTTPS check
+  const isSecure =
+    location.protocol === 'https:' ||
+    location.hostname === 'localhost' ||
+    location.hostname === '127.0.0.1';
+
+  if (!isSecure) {
+    showToast('Voice chat requires HTTPS');
+    return;
+  }
+
+  // ─────────────────────────────────────
+  // FIRST TIME CONNECT
+  // ─────────────────────────────────────
+
   if (!vc.isActive) {
-    updateMicBtn(null, null);
 
-    const ok = await vc.join(true); // join muted
+    try {
 
-    if (ok) {
+      updateMicBtn(null, null);
+
+      // Ask mic permission FIRST
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true
+      });
+
+      // Stop temporary tracks
+      stream.getTracks().forEach(track => track.stop());
+
+      // Connect voice system
+      const ok = await vc.join(true);
+
+      if (!ok) {
+        updateMicBtn(false, false);
+        showToast('Unable to connect voice chat');
+        return;
+      }
+
       updateMicBtn(true, true);
 
-      $('voicePanel').style.display = 'block';
+      $('voicePanel').style.display = 'flex';
 
       showToast('Voice connected (muted)', 'success');
-    } else {
+
+    } catch (err) {
+
+      console.error('VOICE ERROR:', err);
+
       updateMicBtn(false, false);
+
+      // Better error messages
+      if (err.name === 'NotAllowedError') {
+        showToast('Microphone permission denied');
+      }
+      else if (err.name === 'NotFoundError') {
+        showToast('No microphone detected');
+      }
+      else if (err.name === 'NotReadableError') {
+        showToast('Microphone already in use');
+      }
+      else {
+        showToast('Voice chat failed');
+      }
 
       $('micDenied').style.display = 'block';
 
       setTimeout(() => {
         $('micDenied').style.display = 'none';
-      }, 3500);
+      }, 3000);
     }
 
     return;
   }
 
-  // TOGGLE MUTE / UNMUTE
-  const muted = vc.toggleMute();
+  // ─────────────────────────────────────
+  // TOGGLE MUTE
+  // ─────────────────────────────────────
 
-  updateMicBtn(true, muted);
+  try {
 
-  showToast(
-    muted ? 'Microphone muted' : 'Microphone unmuted',
-    'success'
-  );
+    const muted = vc.toggleMute();
+
+    updateMicBtn(true, muted);
+
+    showToast(
+      muted ? 'Microphone muted' : 'Microphone unmuted',
+      'success'
+    );
+
+  } catch (err) {
+
+    console.error(err);
+
+    showToast('Voice toggle failed');
+  }
 }
 
 function updateMicBtn(isActive, isMuted) {
