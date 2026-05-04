@@ -256,155 +256,32 @@ Players:
 
 ---
 
-## Game Start
+## Features
 
-The server:
-- Shuffles the deck
-- Distributes cards
-- Determines player order
-- Synchronizes initial game state
-
----
-
-## Turn Phase
-
-During a turn, players may:
-
-- Select cards
-- Claim a rank
-- Bluff opponents
-- Pass strategically
-- Trigger bluff windows
+- **Real-time multiplayer** via Socket.io rooms
+- **Room codes** — 6-character shareable codes
+- **8 unique characters** — hand-crafted SVG avatars (Phantom, Blaze, Glacier, Shadow, Viper, Thunder, Cosmos, Titan)
+- **3D felt table** — CSS perspective/rotateX table with stacked card pile
+- **Fan hand layout** — cards spread in natural arc, lift on select
+- **Bluff window** — any player can challenge; next player can proceed
+- **Game log** — last 8 game events shown on table
+- **Pass immunity** display when full set was played
+- **Celebration particles** on game over
+- **Host controls** — only host can start/restart game
+- **Responsive** — works on mobile and desktop
+- **No emojis** — Font Awesome icons throughout
 
 ---
 
-## Bluff Resolution
+## Technology Stack
 
-When a bluff is challenged:
-
-- The played cards are verified
-- The losing player receives penalties
-- The game state updates dynamically
-- The next round begins
-
----
-
-## Victory Phase
-
-The game ends when:
-
-- A player successfully removes all cards
-- The winner is announced
-- End-game overlays appear
-- Restart options become available
+| Layer | Tech |
+|---|---|
+| Server | Node.js, Express |
+| Real-time | Socket.io v4 |
+| Frontend | Vanilla JS (ES6+), HTML5, CSS3 |
+| Icons | Font Awesome 6 |
+| Fonts | Cinzel Decorative (headers), Rajdhani (body) |
+| Avatars | Inline SVG (no images needed) |
 
 ---
-
-# User Interface Components
-
-## Lobby Interface
-
-Displays:
-- Room code
-- Connected players
-- Host controls
-- Player avatars
-- Ready states
-
----
-
-## Gameplay Interface
-
-Displays:
-- Player hand
-- Opponent positions
-- Center pile
-- Claim information
-- Turn indicators
-- Round status
-
----
-
-## Voice Interface
-
-Displays:
-- Connected voice participants
-- Microphone status
-- Mute controls
-- Voice activity indicators
-
----
-
-## Game Overlay System
-
-Handles:
-- Bluff windows
-- Round transitions
-- Notifications
-- Victory screens
-- Interaction prompts
-
----
-
-# Security and Validation
-
-The server validates:
-
-- Turn legality
-- Card ownership
-- Bluff logic
-- Multiplayer synchronization
-- Room actions
-- Player events
-
-This prevents client-side manipulation and maintains fair gameplay.
-
----
-
-# Scalability
-
-The architecture is designed to support:
-
-- Multiple simultaneous rooms
-- Concurrent multiplayer sessions
-- Expandable gameplay features
-- Additional social systems
-- Future matchmaking systems
-
----
-
-# Future Enhancements
-
-Planned improvements include:
-
-- Ranked matchmaking
-- AI opponents
-- Spectator mode
-- Replay system
-- Friend system
-- Global leaderboards
-- Cosmetic customization
-- Advanced statistics
-- Cross-platform accounts
-- Tournament support
-
----
-
-# Potential Applications
-
-BLUFF.EXE can serve as:
-
-- Multiplayer browser game platform
-- Real-time networking demonstration
-- WebRTC implementation example
-- Progressive Web App showcase
-- Educational multiplayer architecture project
-- Portfolio project for real-time systems
-
----
-
-# Conclusion
-
-BLUFF.EXE demonstrates the integration of multiplayer networking, browser-based voice communication, synchronized gameplay systems, and modern frontend technologies into a complete interactive gaming platform.
-
-The project highlights concepts including real-time communication, multiplayer state management, WebRTC audio streaming, responsive UI development, and scalable browser-based game architecture while delivering an engaging social gaming experience.
