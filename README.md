@@ -2,7 +2,7 @@
 
 ## Overview
 
-BLUFF.EXE is a modern real-time multiplayer bluff card game built for the browser using WebSockets, WebRTC voice communication, and Progressive Web App technologies.
+BLUFF.EXE is a modern real-time multiplayer bluff card game built for the browser using WebSockets, WebRTC voice communication, and Progressive Web App technologies
 
 The project recreates the classic bluff gameplay experience in an immersive online multiplayer environment featuring live rooms, animated gameplay, interactive UI systems, integrated voice chat, responsive design, and real-time game synchronization.
 
